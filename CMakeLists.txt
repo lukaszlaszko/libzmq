@@ -54,6 +54,22 @@ set (pkg_config_libs_private "")
 
 option (WITH_OPENPGM "Build with support for OpenPGM" OFF)
 option (WITH_VMCI "Build with support for VMware VMCI socket" OFF)
+option (WITH_NORM "Build with support for NORM" OFF)
+
+if (WITH_NORM)
+    find_path(NORM_INCLUDE_DIRS include/normApi.h)
+    message (STATUS "NORM detected - ${NORM_INCLUDE_DIRS}")
+
+    if (NORM_INCLUDE_DIRS)
+        find_library(NORM_LIBRARIES lib/libnorm.so)
+
+        message (STATUS "NORM include dir ${NORM_INCLUDE_DIRS}")
+        message (STATUS "NORM library ${NORM_LIBRARIES}")
+        set (ZMQ_HAVE_NORM 1)
+    else()
+        message (FATAL_ERROR "NORM not installed")
+    endif()
+endif()
 
 if (APPLE)
     option (ZMQ_BUILD_FRAMEWORK "Build as OS X framework" OFF)
@@ -323,15 +339,15 @@ endmacro ()
 OPTION (ENABLE_ANALYSIS "Build with static analysis (make take very long)" OFF)
 
 if (MSVC)
-  if (ENABLE_ANALYSIS)  
+  if (ENABLE_ANALYSIS)
     zmq_check_cxx_flag_prepend ("/W4")
 
     zmq_check_cxx_flag_prepend ("/analyze")
-    
+
     # C++11/14/17-specific, but maybe possible via conditional defines
-    zmq_check_cxx_flag_prepend ("/wd26440") # Function '...' can be declared 'noexcept' 
+    zmq_check_cxx_flag_prepend ("/wd26440") # Function '...' can be declared 'noexcept'
     zmq_check_cxx_flag_prepend ("/wd26432") # If you define or delete any default operation in the type '...', define or delete them all
-    zmq_check_cxx_flag_prepend ("/wd26439") # This kind of function may not throw. Declare it 'noexcept' 
+    zmq_check_cxx_flag_prepend ("/wd26439") # This kind of function may not throw. Declare it 'noexcept'
     zmq_check_cxx_flag_prepend ("/wd26447") # The function is declared 'noexcept' but calls function '...' which may throw exceptions
     zmq_check_cxx_flag_prepend ("/wd26433") # Function '...' should be marked with 'override'
     zmq_check_cxx_flag_prepend ("/wd26409") # Avoid calling new and delete explicitly, use std::make_unique<T> instead
@@ -341,7 +357,7 @@ if (MSVC)
     zmq_check_cxx_flag_prepend ("/wd26481") # Don't use pointer arithmetic. Use span instead
     zmq_check_cxx_flag_prepend ("/wd26472") # Don't use a static_cast for arithmetic conversions. Use brace initialization, gsl::narrow_cast or gsl::narow
     zmq_check_cxx_flag_prepend ("/wd26448") # Consider using gsl::finally if final action is intended
-    zmq_check_cxx_flag_prepend ("/wd26400") # Do not assign the result of an allocation or a function call with an owner<T> return value to a raw pointer, use owner<T> instead    
+    zmq_check_cxx_flag_prepend ("/wd26400") # Do not assign the result of an allocation or a function call with an owner<T> return value to a raw pointer, use owner<T> instead
     zmq_check_cxx_flag_prepend ("/wd26485") # Expression '...': No array to pointer decay (bounds.3)
   else()
     zmq_check_cxx_flag_prepend ("/W3")
@@ -876,6 +892,12 @@ if (WITH_VMCI)
     list (APPEND cxx-sources vmci_address.cpp vmci_connecter.cpp vmci_listener.cpp vmci.cpp)
 endif (WITH_VMCI)
 
+if (WITH_NORM)
+    add_definitions (-DZMQ_HAVE_NORM)
+    list (APPEND cxx-sources norm_engine.cpp)
+    set (OPTIONAL_LIBRARIES ${NORM_LIBRARIES})
+endif (WITH_NORM)
+
 if (ZMQ_HAVE_TIPC)
     add_definitions (-DZMQ_HAVE_TIPC)
     list (APPEND cxx-sources tipc_address.cpp tipc_connecter.cpp tipc_listener.cpp)
@@ -955,7 +977,7 @@ endif ()
 
 if (MSVC)
     # default for all sources is to use precompiled headers
-    foreach(source ${sources})    
+    foreach(source ${sources})
         # C and C++ can not use the same precompiled header
         if (${soruce} MATCHES ".cpp$" AND NOT ${source} STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/src/precompiled.cpp")
             set_source_files_properties(${source}
